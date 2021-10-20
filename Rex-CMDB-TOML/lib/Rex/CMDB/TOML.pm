@@ -270,7 +270,7 @@ management database for Rex.
     };
     
     task 'prepare', 'server1', sub {
-        my %all_information          = get cmdb;
+        my $all_information          = get cmdb;
         my $specific_item            = get cmdb('item');
         my $specific_item_for_server = get cmdb( 'item', 'server' );
     };
@@ -413,5 +413,40 @@ of merging the config into the roles.
 This is a Perl boolean and the default is '0', meaning the config
 will over write anything in the roles with the default merge_behavior
 settings.
+
+=head1 ROLES
+
+If use_roles has been set to true, when loading a config file, it will check for
+value 'roles' and if that value is a array, it will then go through and look foreach
+of those roles under the roles_path.
+
+So lets say we have the config below.
+
+    foo = "bar"
+    ping="no"
+    roles = [ 'test' ]
+
+It will then load look under the roles_path for the file 'test.toml', which with
+the default settings would be 'cmdb/roles/test.toml'.
+
+Lets say we have the the role file set as below.
+
+    ping = "yes"
+    [ping_test]
+    misses = 3
+
+This means with the value for ping will be 'no' as the default of 'yes' is being
+overriden by the config value.
+
+Somethings to keep in mind when using this.
+
+1: Don't define a value you intend to use in a role in any of the config files that
+will me merged unless you want it to always override anything a role may import. So
+with like the example above, you would want to avoid putting ping='no' in the default
+toml file and only set it if you want to override that role in like the toml config
+for that host.
+
+2: Roles may not include roles. While it won't error or the like, they also won't
+be reeled in.
 
 =cut
