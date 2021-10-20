@@ -63,6 +63,33 @@ sub new {
 
 	bless( $self, $proto );
 
+	# turn roles off by default
+	if ( !defined( $self->{use_roles} ) ) {
+		$self->{use_roles} = 0;
+	}
+
+	# set the default role path ro 'cmdb/roles'
+	if ( !defined( $self->{roles_path} ) ) {
+		$self->{roles_path} = 'cmdb/roles';
+	}
+
+	# if parsing failure should be fatal
+	# default true
+	if ( !defined( $self->{parse_error_fatal} ) ) {
+		$self->{parse_error_fatal} = 1;
+	}
+
+	# die if the role does not exist
+	# default true
+	if ( !defined( $self->{missing_role_fatal} ) ) {
+		$self->{missing_role_fatal} = 1;
+	}
+
+	# default to false, config overwrites role settings
+	if ( !defined( $self->{roles_merge_after} ) ) {
+		$self->{roles_merge_after} = 0;
+	}
+
 	return $self;
 }
 
@@ -72,6 +99,10 @@ sub get {
 	$server = $self->__get_hostname_for($server);
 
 	my $result = {};
+
+	# keep this out here so generated when the files are loaded
+	# keep it around later for role processing
+	my %template_vars;
 
 	if ( $self->__cache->valid( $self->__cache_key() ) ) {
 		$result = $self->__cache->get( $self->__cache_key() );
@@ -84,7 +115,6 @@ sub get {
 
 		# configuration variables
 		my $config_values = Rex::Config->get_all;
-		my %template_vars;
 		for my $key ( keys %{$config_values} ) {
 			if ( !exists $template_vars{$key} ) {
 				$template_vars{$key} = $config_values->{$key};
@@ -101,9 +131,79 @@ sub get {
 				$content .= "\n";    # for safety
 				$content = $t->( $content, \%template_vars );
 
-				my $ref = from_toml($content);
+				my ( $ref, $parse_error ) = from_toml($content);
 
-				$result = $self->{merger}->merge( $result, $ref );
+				# only merge it if we have a actual result
+				if ( defined($ref) ) {
+					$result = $self->{merger}->merge( $result, $ref );
+				}
+				else {
+					my $error = 'Failed to parse TOML config file "' . $file . '" with error... ' . $parse_error;
+					if ( $self->{parse_error_fatal} ) {
+						die($error);
+					}
+					else {
+						warn($error);
+					}
+				}
+			}
+		}
+	}
+
+	# if use_roles is true, process the roles variablesif set
+	# the item has roles and that the roles is a array
+	if (   $self->{use_roles}
+		&& ( defined( $result->{roles} ) )
+		&& ( ref( $result->{roles} ) eq 'ARRAY' ) )
+	{
+		Rex::Logger::debug("CMDB - Starting role processing");
+
+		# load each role
+		foreach my $role ( @{ $result->{roles} } ) {
+			Rex::Logger::debug( "CMDB - Processing role '" . $role . "'" );
+			my $role_file = File::Spec->join( $self->{roles_path}, $role . '.toml' );
+
+			# if the file exists, load it
+			if ( -f $role_file ) {
+				my $content = eval { local ( @ARGV, $/ ) = ($role_file); <>; };
+				my $t       = Rex::Config->get_template_function();
+				$content .= "\n";    # for safety
+				$content = $t->( $content, \%template_vars );
+
+				my ( $ref, $parse_error ) = from_toml($content);
+
+				# only merge it if we have a actual result
+				# undef causes the merge feature to wipe it all out
+				# that and it did error... so we need to handle the error
+				if ( defined($ref) ) {
+
+					# don't let host variables override the role if
+					# roles_merge_after is true
+					if ( $self->{roles_merge_after} ) {
+						$result = $self->{merger}->merge( $ref, $result );
+					}
+					else {
+						$result = $self->{merger}->merge( $result, $ref );
+					}
+				}
+				else {
+					my $error = 'Failed to parse TOML role file "' . $role_file . '" with error... ' . $parse_error;
+					if ( $self->{parse_error_fatal} ) {
+						die($error);
+					}
+					else {
+						warn($error);
+					}
+				}
+			}
+			else {
+				my $error = "The role '" . $role . "' is specified by the file '" . $role_file . "' does not eixst";
+				if ( $self->{missing_role_fatal} ) {
+					die($error);
+				}
+				else {
+					warn($error);
+				}
 			}
 		}
 	}
@@ -111,10 +211,7 @@ sub get {
 	if ( defined $item ) {
 		return $result->{$item};
 	}
-	else {
-		return $result;
-	}
-
+	return $result;
 }
 
 sub _get_cmdb_files {
@@ -283,5 +380,38 @@ Or even custom ones:
     };
 
 For the full list of options, please see the documentation of Hash::Merge.
+
+=head2 use_roles
+
+Specifies if roles should be used or not.
+
+This value is a Perl boolean and defaults to '0'.
+
+=head2 roles_path
+
+The path to look for roles under.
+
+By default it is 'cmdb/roles'.
+
+=head2 parse_error_fatal
+
+If it should die or warn upon TOML parsing error.
+
+This is a Perl boolean and the default is '1', to die.
+
+=head2 missing_role_fatal
+
+If a specified role not being able to be found is fatal.
+
+This is a Perl boolean and the default is '1', to die.
+
+=head2 roles_merge_after
+
+If it should merge the roles into the config instead of the default
+of merging the config into the roles.
+
+This is a Perl boolean and the default is '0', meaning the config
+will over write anything in the roles with the default merge_behavior
+settings.
 
 =cut
