@@ -1,19 +1,19 @@
 # (c) Jan Gehring <jan.gehring@gmail.com>
 # (c) Zane C. Bowers-Hadley
 
-package Rex::CMDB::TOML;
+package Rex::CMDB::YAMLwithRoles;
 
 use 5.010001;
 use strict;
 use warnings;
 
-our $VERSION = '0.0.2';    # VERSION
+our $VERSION = '0.0.1';    # VERSION
 
 use base qw(Rex::CMDB::Base);
 
 use Rex::Commands -no => [qw/get/];
 use Rex::Logger;
-use TOML qw(from_toml);
+use YAML::XS;
 use Data::Dumper;
 use Hash::Merge qw/merge/;
 
@@ -130,14 +130,21 @@ sub get {
 				$content .= "\n";    # for safety
 				$content = $t->( $content, \%template_vars );
 
-				my ( $ref, $parse_error ) = from_toml($content);
+				my $ref;
+				my $parse_error;
+				eval{
+					$ref = Load($content);
+				};
+				if ($@) {
+					$parse_error=$@;
+				}
 
 				# only merge it if we have a actual result
 				if ( defined($ref) ) {
 					$result = $self->{merger}->merge( $result, $ref );
 				}
 				else {
-					my $error = 'Failed to parse TOML config file "' . $file . '" with error... ' . $parse_error;
+					my $error = 'Failed to parse YAML config file "' . $file . '" with error... ' . $parse_error;
 					if ( $self->{parse_error_fatal} ) {
 						die($error);
 					}
@@ -160,7 +167,7 @@ sub get {
 		# load each role
 		foreach my $role ( @{ $result->{roles} } ) {
 			Rex::Logger::debug( "CMDB - Processing role '" . $role . "'" );
-			my $role_file = File::Spec->join( $self->{roles_path}, $role . '.toml' );
+			my $role_file = File::Spec->join( $self->{roles_path}, $role . '.yaml' );
 
 			# if the file exists, load it
 			if ( -f $role_file ) {
@@ -169,7 +176,14 @@ sub get {
 				$content .= "\n";    # for safety
 				$content = $t->( $content, \%template_vars );
 
-				my ( $ref, $parse_error ) = from_toml($content);
+				my $ref;
+				my $parse_error;
+				eval{
+					$ref = Load($content);
+				};
+				if ($@) {
+					$parse_error=$@;
+				}
 
 				# only merge it if we have a actual result
 				# undef causes the merge feature to wipe it all out
@@ -186,7 +200,7 @@ sub get {
 					}
 				}
 				else {
-					my $error = 'Failed to parse TOML role file "' . $role_file . '" with error... ' . $parse_error;
+					my $error = 'Failed to parse YAML role file "' . $role_file . '" with error... ' . $parse_error;
 					if ( $self->{parse_error_fatal} ) {
 						die($error);
 					}
@@ -222,8 +236,8 @@ sub _get_cmdb_files {
 
 	if ( !ref $self->{path} ) {
 		my $env          = Rex::Commands::environment();
-		my $server_file  = "$server.toml";
-		my $default_file = 'default.toml';
+		my $server_file  = "$server.yaml";
+		my $default_file = 'default.yaml';
 		@files = (
 			File::Spec->join( $self->{path}, $env, $server_file ),
 			File::Spec->join( $self->{path}, $env, $default_file ),
@@ -251,11 +265,11 @@ __END__
 
 =head1 NAME
 
-Rex::CMDB::TOML - TOML-based CMDB provider for Rex
+Rex::CMDB::YAMLwithroles - YAML-based CMDB provider for Rex with support for roles
 
 =head1 DESCRIPTION
 
-This module collects and merges data from a set of TOML files to provide configuration
+This module collects and merges data from a set of YAML files to provide configuration
 management database for Rex.
 
 =head1 SYNOPSIS
@@ -263,8 +277,8 @@ management database for Rex.
     use Rex::CMDB;
     
     set cmdb => {
-        type           => 'TOML',
-        path           => [ 'cmdb/{hostname}.toml', 'cmdb/default.toml', ],
+        type           => 'YAMLwithRoles',
+        path           => [ 'cmdb/{hostname}.yaml', 'cmdb/default.yaml', ],
         merge_behavior => 'LEFT_PRECEDENT',
     };
     
@@ -286,22 +300,22 @@ type of data passed to it.
 =item * Scalar
 
     set cmdb => {
-        type => 'TOML',
+        type => 'YAMLwithRoles',
         path => 'path/to/cmdb',
      };
 
 If a scalar is used, it tries to look up a few files under the given path:
 
-    path/to/cmdb/{environment}/{hostname}.toml
-    path/to/cmdb/{environment}/default.toml
-    path/to/cmdb/{hostname}.toml
-    path/to/cmdb/default.toml
+    path/to/cmdb/{environment}/{hostname}.yaml
+    path/to/cmdb/{environment}/default.yaml
+    path/to/cmdb/{hostname}.yaml
+    path/to/cmdb/default.yaml
 
 =item * Array reference
 
     set cmdb => {
-        type => 'TOML',
-        path => [ 'cmdb/{hostname}.yml', 'cmdb/default.yml', ],
+        type => 'YAMLwithRoles',
+        path => [ 'cmdb/{hostname}.yaml', 'cmdb/default.yaml', ],
     };
 
 If an array reference is used, it tries to look up the mentioned files in the given
@@ -310,10 +324,10 @@ order.
 =item * Code reference
 
     set cmdb => {
-        type => 'TOML',
+        type => 'YAMLwithRoles',
         path => sub {
             my ( $provider, $item, $server ) = @_;
-            my @files = ( "$server.yml", "$item.yml" );
+            my @files = ( "$server.yaml", "$item.yaml" );
             return @files;
         },
     };
@@ -328,12 +342,12 @@ When the L<0.51 feature flag|Rex#0.51> or later is used, the default value of th
 C<path> option is:
 
     [qw(
-        cmdb/{operatingsystem}/{hostname}.toml
-        cmdb/{operatingsystem}/default.toml
-        cmdb/{environment}/{hostname}.toml
-        cmdb/{environment}/default.toml
-        cmdb/{hostname}.toml
-        cmdb/default.toml
+        cmdb/{operatingsystem}/{hostname}.yaml
+        cmdb/{operatingsystem}/default.yaml
+        cmdb/{environment}/{hostname}.yaml
+        cmdb/{environment}/default.yaml
+        cmdb/{hostname}.yaml
+        cmdb/default.yaml
     )]
 
 The path specification supports macros enclosed within curly braces, which are
@@ -362,7 +376,7 @@ hierarchy. Any merge strategy supported by that module can be specified to overr
 default one. For example one of the built-in strategies:
 
     set cmdb => {
-        type           => 'TOML',
+        type           => 'YAMLwithRoles',
         path           => 'cmdb',
         merge_behavior => 'LEFT_PRECEDENT',
     };
@@ -370,7 +384,7 @@ default one. For example one of the built-in strategies:
 Or even custom ones:
 
     set cmdb => {
-        type           => 'TOML',
+        type           => 'YAMLwithRoles',
         path           => 'cmdb',
         merge_behavior => {
             SCALAR => sub {},
@@ -394,7 +408,7 @@ By default it is 'cmdb/roles'.
 
 =head2 parse_error_fatal
 
-If it should die or warn upon TOML parsing error.
+If it should die or warn upon YAML parsing error.
 
 This is a Perl boolean and the default is '1', to die.
 
@@ -423,18 +437,19 @@ of those roles under the roles_path.
 
 So lets say we have the config below.
 
-    foo = "bar"
-    ping="no"
-    roles = [ 'test' ]
+    foo: "bar"
+    ping: "no"
+    roles:
+      - 'test'
 
-It will then load look under the roles_path for the file 'test.toml', which with
-the default settings would be 'cmdb/roles/test.toml'.
+It will then load look under the roles_path for the file 'test.yaml', which with
+the default settings would be 'cmdb/roles/test.yaml'.
 
 Lets say we have the the role file set as below.
 
-    ping = "yes"
-    [ping_test]
-    misses = 3
+    ping: "yes"
+      ping_test:
+        misses: 3
 
 This means with the value for ping will be 'no' as the default of 'yes' is being
 overriden by the config value.
