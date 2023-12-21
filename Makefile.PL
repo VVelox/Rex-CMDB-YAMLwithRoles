@@ -4,10 +4,10 @@ use warnings;
 use ExtUtils::MakeMaker;
 
 my %WriteMakefileArgs = (
-	NAME               => 'Rex::CMDB::TOML',
+	NAME               => 'Rex::CMDB::YAMLwithRoles',
 	AUTHOR             => q{Zane C. Bowers-Hadley <vvelox@vvelox.net>},
-	VERSION_FROM       => 'lib/Rex/CMDB/TOML.pm',
-	ABSTRACT_FROM      => 'lib/Rex/CMDB/TOML.pm',
+	VERSION_FROM       => 'lib/Rex/CMDB/YAMLwithRoles.pm',
+	ABSTRACT_FROM      => 'lib/Rex/CMDB/YAMLwithRoles.pm',
 	LICENSE            => 'apache_2_0',
 	MIN_PERL_VERSION   => '5.006',
 	CONFIGURE_REQUIRES => {
@@ -22,10 +22,10 @@ my %WriteMakefileArgs = (
 		'Data::Dumper'        => '0',
 		'Hash::Merge'         => '0',
 		'Rex::Commands::File' => '0',
-		'TOML'                => '0',
+		'YAML::XS'                => '0',
 	},
 	dist  => { COMPRESS => 'gzip -9f', SUFFIX => 'gz', },
-	clean => { FILES    => 'Rex-CMDB-TOML-*' },
+	clean => { FILES    => 'Rex-CMDB-YAMLwithRoles-*' },
 );
 
 # Compatibility with old versions of ExtUtils::MakeMaker

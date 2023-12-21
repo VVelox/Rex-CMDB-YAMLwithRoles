@@ -49,13 +49,11 @@ sub new {
 		);    # first found value always wins
 
 		$self->{merger}->set_behavior('REX_DEFAULT');
-	}
-	else {
+	} else {
 		if ( ref $self->{merge_behavior} eq 'HASH' ) {
 			$self->{merger}->specify_behavior( $self->{merge_behavior}, 'USER_DEFINED' );
 			$self->{merger}->set_behavior('USER_DEFINED');
-		}
-		else {
+		} else {
 			$self->{merger}->set_behavior( $self->{merge_behavior} );
 		}
 	}
@@ -69,7 +67,7 @@ sub new {
 
 	# set the default role path ro 'cmdb/roles'
 	if ( !defined( $self->{roles_path} ) ) {
-		$self->{roles_path} = File::Spec->join( $self->{path},'roles');
+		$self->{roles_path} = File::Spec->join( $self->{path}, 'roles' );
 	}
 
 	# if parsing failure should be fatal
@@ -90,7 +88,7 @@ sub new {
 	}
 
 	return $self;
-}
+} ## end sub new
 
 sub get {
 	my ( $self, $item, $server ) = @_;
@@ -105,8 +103,7 @@ sub get {
 
 	if ( $self->__cache->valid( $self->__cache_key() ) ) {
 		$result = $self->__cache->get( $self->__cache_key() );
-	}
-	else {
+	} else {
 
 		my @files = $self->_get_cmdb_files( $item, $server );
 
@@ -132,29 +129,25 @@ sub get {
 
 				my $ref;
 				my $parse_error;
-				eval{
-					$ref = Load($content);
-				};
+				eval { $ref = Load($content); };
 				if ($@) {
-					$parse_error=$@;
+					$parse_error = $@;
 				}
 
 				# only merge it if we have a actual result
 				if ( defined($ref) ) {
 					$result = $self->{merger}->merge( $result, $ref );
-				}
-				else {
+				} else {
 					my $error = 'Failed to parse YAML config file "' . $file . '" with error... ' . $parse_error;
 					if ( $self->{parse_error_fatal} ) {
 						die($error);
-					}
-					else {
+					} else {
 						warn($error);
 					}
 				}
-			}
-		}
-	}
+			} ## end if ( -f $file )
+		} ## end for my $file (@files)
+	} ## end else [ if ( $self->__cache->valid( $self->__cache_key...))]
 
 	# if use_roles is true, process the roles variablesif set
 	# the item has roles and that the roles is a array
@@ -178,11 +171,9 @@ sub get {
 
 				my $ref;
 				my $parse_error;
-				eval{
-					$ref = Load($content);
-				};
+				eval { $ref = Load($content); };
 				if ($@) {
-					$parse_error=$@;
+					$parse_error = $@;
 				}
 
 				# only merge it if we have a actual result
@@ -194,38 +185,33 @@ sub get {
 					# roles_merge_after is true
 					if ( $self->{roles_merge_after} ) {
 						$result = $self->{merger}->merge( $ref, $result );
-					}
-					else {
+					} else {
 						$result = $self->{merger}->merge( $result, $ref );
 					}
-				}
-				else {
+				} else {
 					my $error = 'Failed to parse YAML role file "' . $role_file . '" with error... ' . $parse_error;
 					if ( $self->{parse_error_fatal} ) {
 						die($error);
-					}
-					else {
+					} else {
 						warn($error);
 					}
 				}
-			}
-			else {
+			} else {
 				my $error = "The role '" . $role . "' is specified by the file '" . $role_file . "' does not eixst";
 				if ( $self->{missing_role_fatal} ) {
 					die($error);
-				}
-				else {
+				} else {
 					warn($error);
 				}
 			}
-		}
-	}
+		} ## end foreach my $role ( @{ $result->{roles} } )
+	} ## end if ( $self->{use_roles} && ( defined( $result...)))
 
 	if ( defined $item ) {
 		return $result->{$item};
 	}
 	return $result;
-}
+} ## end sub get
 
 sub _get_cmdb_files {
 	my ( $self, $item, $server ) = @_;
@@ -244,11 +230,9 @@ sub _get_cmdb_files {
 			File::Spec->join( $self->{path}, $server_file ),
 			File::Spec->join( $self->{path}, $default_file ),
 		);
-	}
-	elsif ( ref $self->{path} eq "CODE" ) {
+	} elsif ( ref $self->{path} eq "CODE" ) {
 		@files = $self->{path}->( $self, $item, $server );
-	}
-	elsif ( ref $self->{path} eq "ARRAY" ) {
+	} elsif ( ref $self->{path} eq "ARRAY" ) {
 		@files = @{ $self->{path} };
 	}
 
@@ -257,7 +241,7 @@ sub _get_cmdb_files {
 	@files = map { $self->_parse_path( $_, { hostname => $server, operatingsystem => $os, } ) } @files;
 
 	return @files;
-}
+} ## end sub _get_cmdb_files
 
 1;
 
@@ -360,7 +344,7 @@ Please note that the default environment is, well, C<default>.
 You can define additional CMDB paths via the C<-O> command line option by using a
 semicolon-separated list of C<cmdb_path=$path> key-value pairs:
 
- rex -O 'cmdb_path=cmdb/{domain}.toml;cmdb_path=cmdb/{domain}/{hostname}.toml;' taskname
+ rex -O 'cmdb_path=cmdb/{domain}.ymal;cmdb_path=cmdb/{domain}/{hostname}.yaml;' taskname
 
 Those additional paths will be prepended to the current list of CMDB paths (so the last one
 specified will get on top, and thus checked first).
@@ -459,7 +443,7 @@ Somethings to keep in mind when using this.
 1: Don't define a value you intend to use in a role in any of the config files that
 will me merged unless you want it to always override anything a role may import. So
 with like the example above, you would want to avoid putting ping='no' in the default
-toml file and only set it if you want to override that role in like the toml config
+yaml file and only set it if you want to override that role in like the yaml config
 for that host.
 
 2: Roles may not include roles. While it won't error or the like, they also won't
