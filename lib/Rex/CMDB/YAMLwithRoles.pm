@@ -135,7 +135,7 @@ sub get {
 				}
 
 				# only merge it if we have a actual result
-				if ( defined($ref) ) {
+				if ( !defined($parse_error) ) {
 					$result = $self->{merger}->merge( $result, $ref );
 				} else {
 					my $error = 'Failed to parse YAML config file "' . $file . '" with error... ' . $parse_error;
@@ -164,6 +164,7 @@ sub get {
 
 			# if the file exists, load it
 			if ( -f $role_file ) {
+
 				my $content = eval { local ( @ARGV, $/ ) = ($role_file); <>; };
 				my $t       = Rex::Config->get_template_function();
 				$content .= "\n";    # for safety
@@ -179,7 +180,7 @@ sub get {
 				# only merge it if we have a actual result
 				# undef causes the merge feature to wipe it all out
 				# that and it did error... so we need to handle the error
-				if ( defined($ref) ) {
+				if ( !defined($parse_error) ) {
 
 					# don't let host variables override the role if
 					# roles_merge_after is true
