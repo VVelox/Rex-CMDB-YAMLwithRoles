@@ -6,3 +6,6 @@ roles:
 
 
 foo: "a test"
+
+suricata_extract:
+  enable: 0

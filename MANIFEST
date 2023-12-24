@@ -7,3 +7,7 @@ t/00-load.t
 t/manifest.t
 t/pod-coverage.t
 t/pod.t
+t/cmdb/roles/suricata.yaml
+t/cmdb/test1.yaml
+t/cmdb/default.yaml
+t/cmdb.t
